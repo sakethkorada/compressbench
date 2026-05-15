@@ -4,8 +4,9 @@
 *.huf
 *.cbz
 compressbench
+compressbench.exe
 compress
 uncompress
 output.txt
 .DS_Store
-.vscode/compressbench.exe
+.vscode/
