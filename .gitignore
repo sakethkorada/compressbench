@@ -8,4 +8,4 @@ compress
 uncompress
 output.txt
 .DS_Store
-.vscode/
+.vscode/compressbench.exe
