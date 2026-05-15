@@ -1,0 +1,11 @@
+/build/
+*.o
+*.out
+*.huf
+*.cbz
+compressbench
+compress
+uncompress
+output.txt
+.DS_Store
+.vscode/
