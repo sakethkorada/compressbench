@@ -59,7 +59,7 @@ int FancyInputStream::read_bit() {
 }
 
 // FancyOutputStream function implementations
-FancyOutputStream::FancyOutputStream(const char* filename) : output_file(ofstream(filename,ios::binary)), buffer(0), buffer_index(0) {}
+FancyOutputStream::FancyOutputStream(const char* filename) : output_file(ofstream(filename,ios::binary)), buffer(0), buffer_index(0), bytes_written(0) {}
 
 FancyOutputStream::~FancyOutputStream() {
     flush();
@@ -69,11 +69,16 @@ bool FancyOutputStream::good() const {
     return output_file.good();
 }
 
+uint64_t FancyOutputStream::byte_count() const {
+    return bytes_written;
+}
+
 void FancyOutputStream::write_int(int const & num) {
     if(buffer_index != 0) {
         error("Attempting to write int when bitwise buffer is not empty");
     }
     output_file.write((char*)&num, sizeof(num)); // write 'num' to file
+    bytes_written += sizeof(num);
 }
 
 void FancyOutputStream::write_byte(unsigned char const & byte) {
@@ -81,6 +86,7 @@ void FancyOutputStream::write_byte(unsigned char const & byte) {
         error("Attempting to write byte when bitwise buffer is not empty");
     }
     output_file.put(byte);
+    bytes_written += 1;
 }
 
 void FancyOutputStream::write_bit(int bit) {
@@ -102,6 +108,7 @@ void FancyOutputStream::flush_bitwise() {
     // if we have bits in our bitwise buffer,
     if(buffer_index != 0) {
         output_file.put(buffer); // write the bitwise buffer to the ofstream
+        bytes_written += 1;
         buffer = 0;              // reset the buffer
         buffer_index = 0;        // reset the buffer index
     }
@@ -124,3 +131,4 @@ bool HCNodePtrComp::operator()(HCNode*& lhs, HCNode*& rhs) const {
     // if the counts are equal, use symbol to break tie
     return lhs->symbol > rhs->symbol;
 }
+

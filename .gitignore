@@ -10,3 +10,4 @@ uncompress
 output.txt
 .DS_Store
 .vscode/
+benchmarks/tmp/

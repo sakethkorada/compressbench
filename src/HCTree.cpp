@@ -81,6 +81,9 @@ unsigned char HCTree::decode(FancyInputStream & in) const{
     HCNode* cur_node = root;
     while(!isChild(cur_node)){
         int next_bit = in.read_bit();
+        if (next_bit == -1) {
+            error("Invalid compressed file: unexpected end of Huffman payload");
+        }
         if(next_bit == 0){
             cur_node = cur_node->c0;
         }

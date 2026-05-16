@@ -1,96 +1,144 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include "HCTree.hpp"
 #include "Helper.hpp"
 #include "Header.hpp"
 #include "Stats.hpp"
+#include "Benchmark.hpp"
 
 using namespace std;
+using namespace std::chrono;
 
 void printFreqs(const vector<int> &freqs);
 
-
 int main(int argc, char* argv[]) {
-    if (argc < 4) {
+    if (argc < 2) {
         cerr << "Usage:\n";
-        cerr << "  ./compressbench compress <input> <output>\n";
-        cerr << "  ./compressbench decompress <input> <output>\n";
+        cerr << "  ./compressbench compress <input> <output> [--header naive|sparse|bitmask] [--stats]\n";
+        cerr << "  ./compressbench decompress <input> <output> [--stats]\n";
+        cerr << "  ./compressbench benchmark <directory> [--csv <path>]\n";
         return 1;
     }
 
     string command = argv[1];
+
+    if (command == "benchmark") {
+        if (argc < 3) {
+            error("Missing benchmark directory");
+        }
+
+        string csv_path;
+        for (int i = 3; i < argc; ++i) {
+            string arg = argv[i];
+            if (arg == "--csv") {
+                if (i + 1 >= argc) {
+                    error("Missing value after --csv");
+                }
+                csv_path = argv[++i];
+            } else {
+                error("Unknown option");
+            }
+        }
+
+        Benchmark::run(argv[2], csv_path);
+        return 0;
+    }
+
+    if (argc < 4) {
+        error("Missing input or output path");
+    }
+    
+    HeaderMode header_mode = HeaderMode::SPARSE;
+    bool show_stats = false;
+
+    // Find, set, and evaluate appropriate flags.
+    for (int i = 4; i < argc; ++i) {
+        string arg = argv[i];
+        if (arg == "--header") {
+            if (i + 1 >= argc) {
+                error("Missing value after --header");
+            }
+            string value = argv[++i];
+            if (value == "naive") {
+                header_mode = HeaderMode::NAIVE;
+            } else if (value == "sparse") {
+                header_mode = HeaderMode::SPARSE;
+            } else if (value == "bitmask") {
+                header_mode = HeaderMode::BITMASK;
+            } else {
+                error("Unknown header mode");
+            }
+        } else if (arg == "--stats") {
+            show_stats = true;
+        } else {
+            error("Unknown option");
+        }
+    }
+
     string inputFile = argv[2];
     string outputFile = argv[3];
 
+    CompressionStats stats;
+    stats.input_path = inputFile;
+    stats.output_path = outputFile;
+    stats.algorithm = AlgorithmId::HUFFMAN;
+
     HCTree hc_tree;
-    vector<int> freqs(256,0);
+    vector<int> freqs(256, 0);
     FancyInputStream read(argv[2]);
     FancyOutputStream write(argv[3]);
 
-
     if (command == "compress") {
         cout << "Compressing " << inputFile << " -> " << outputFile << endl;
+
+        stats.header_mode = header_mode;
+        stats.original_bytes = read.filesize();
+
+        auto start = steady_clock::now();
+
+        if (stats.original_bytes == 0) {
+            write.flush();
+            if (show_stats) {
+                auto end = steady_clock::now();
+                stats.compression_ms = duration<double, std::milli>(end - start).count();
+                stats.compressed_bytes = 0;
+                Stats::print_summary(stats);
+            }
+            return 0;
+        }
         
-        int unique_symbols = 0;
-        if(read.filesize() == 0) return 0;
-        
-        //read data and update freq of symbols from input
+        // Read data and update frequency of symbols from input.
         int nextByte = read.read_byte();
-        while(nextByte != -1){
+        while (nextByte != -1) {
             freqs[nextByte] += 1;
             nextByte = read.read_byte();
         }
 
-        for(const auto &freq: freqs){
-            if(freq != 0) unique_symbols++;
-        }
-
         hc_tree.build(freqs);
+        Header::write_file_header(write, AlgorithmId::HUFFMAN, header_mode, stats.original_bytes);
+        Header::write_huffman_header(write, header_mode, freqs);
 
+        stats.header_bytes = write.byte_count();
 
-        /**
-            Header/Medadata Aproach:
-            First two bytes contain number of symbosl 
-            Then for next n symbols
-                -first byte is symbol
-                -second byte is how long it is (1-4)
-                -next 1-4 bytes is the freq
-        */
-        int byte_number_symbols1 = (unique_symbols >> 8) & 0xFF; 
-        int byte_number_symbols2 = unique_symbols & 0xFF;       
-
-        write.write_byte(byte_number_symbols1);
-        write.write_byte(byte_number_symbols2);
-
-        for(std::size_t i = 0; i < freqs.size(); ++i){
-            int freq = freqs[i];
-            if(freq == 0) continue;
-            int num_bytes;
-
-            if(freq >> 8 == 0) num_bytes = 1;
-            else if(freq >> 16 == 0) num_bytes = 2;
-            else if(freq >> 24 == 0) num_bytes = 3;
-            else num_bytes = 4;
-
-            write.write_byte((int)i); //write symbol
-            write.write_byte(num_bytes); //write num expected bytes
-            
-            for(int j = 0; j < num_bytes; ++j){
-                int shift = 8 * (num_bytes - j - 1);
-                int byte_to_write = (freq >> shift) & 0xFF;
-                write.write_byte(byte_to_write);
-            }
-            
-        }
-
-        //encode data using hc_codes
+        // Encode data using Huffman codes.
         read.reset();
         nextByte = read.read_byte();
-        while(nextByte != -1){
-            hc_tree.encode(nextByte,write);
+        while (nextByte != -1) {
+            hc_tree.encode(nextByte, write);
             nextByte = read.read_byte();
+        }
+
+        write.flush();
+
+        if (show_stats) {
+            auto end = steady_clock::now();
+            stats.compression_ms = duration<double, std::milli>(end - start).count();
+            stats.compressed_bytes = write.byte_count();
+            stats.payload_bytes = stats.compressed_bytes - stats.header_bytes;
+            Stats::print_summary(stats);
         }
         
         return 0;
@@ -98,43 +146,42 @@ int main(int argc, char* argv[]) {
 
     if (command == "decompress") {
         cout << "Decompressing " << inputFile << " -> " << outputFile << endl;
-        
-        int total_bytes = 0;
-        if(read.filesize() == 0) return 0;
-        
-        int byte_number_symbols1 = read.read_byte();
-        int byte_number_symbols2 = read.read_byte();
-        int unique_symbols = (byte_number_symbols1 << 8) | byte_number_symbols2;
 
-        for(int i = 0; i < unique_symbols; ++i){
-            int symbol = read.read_byte();
-            int num_bytes = read.read_byte();
-            int freq = 0;
-            
-            for (int j = 0; j < num_bytes; ++j) {
-                int cur_byte = read.read_byte();
-                freq = (freq << 8) | cur_byte;
-            }
-            freqs[symbol] = freq;
-            total_bytes += freq;
-        }
+        auto start = steady_clock::now();
+        int total_bytes;
+        HeaderMode header;
+        vector<int> freqs;
 
-        //cout << "total bytes: " << total_bytes;
-        //printFreqs(freqs);
+        if (read.filesize() == 0) return 0;
+
+        FileHeader fh = Header::read_file_header(read);
+
+        total_bytes = fh.original_size;
+        header = fh.header_mode;
+        stats.algorithm = fh.algorithm;
+        stats.header_mode = fh.header_mode;
+        stats.original_bytes = fh.original_size;
+        stats.compressed_bytes = read.filesize();
+
+        freqs = Header::read_huffman_header(read, header);
+        stats.header_bytes = Header::huffman_header_bytes(header, freqs);
+        stats.payload_bytes = stats.compressed_bytes - stats.header_bytes;
         
         HCTree hc_tree;
         hc_tree.build(freqs);
-        //hc_tree.printTree();
-
-
-        
-        for(int i = 0; i < total_bytes; ++i){
+    
+        for (int i = 0; i < total_bytes; ++i) {
             int next_char = hc_tree.decode(read);
-            //cout << (char)next_char << " ";
             write.write_byte(next_char);
         }
 
+        write.flush();
 
+        if (show_stats) {
+            auto end = steady_clock::now();
+            stats.decompression_ms = duration<double, std::milli>(end - start).count();
+            Stats::print_summary(stats);
+        }
         return 0;
     }
 
@@ -142,13 +189,8 @@ int main(int argc, char* argv[]) {
     return 1;
 }
 
-
-
-
-
-
-void printFreqs(const vector<int> &freqs){
-    for(std::size_t i = 0; i < freqs.size();++i){
+void printFreqs(const vector<int> &freqs) {
+    for (std::size_t i = 0; i < freqs.size(); ++i) {
         cout << "Symbol: " << char(i) << " Freq: " << freqs[i] << endl;
     }
 }
