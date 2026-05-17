@@ -10,6 +10,7 @@
 #include "HCTree.hpp"
 #include "Header.hpp"
 #include "Helper.hpp"
+#include "HuffmanCompressor.hpp"
 #include "Stats.hpp"
 
 using namespace std;
@@ -47,89 +48,22 @@ namespace {
 
     CompressionStats run_huffman_trial(
         const fs::path& input_path,
-        HeaderMode header_mode,
+        const string& variant,
         const fs::path& compressed_path,
         const fs::path& restored_path
     ) {
-        CompressionStats stats;
-        stats.input_path = input_path.string();
-        stats.output_path = compressed_path.string();
+        HuffmanCompressor compressor;
+        CompressionStats stats = compressor.compress(
+            input_path.string(),
+            compressed_path.string(),
+            variant
+        );
+        CompressionStats decompression_stats = compressor.decompress(
+            compressed_path.string(),
+            restored_path.string()
+        );
         stats.input_kind = infer_input_kind(input_path);
-        stats.algorithm = AlgorithmId::HUFFMAN;
-        stats.header_mode = header_mode;
-
-        string input_name = input_path.string();
-        string compressed_name = compressed_path.string();
-        string restored_name = restored_path.string();
-
-        FancyInputStream input(input_name.c_str());
-        stats.original_bytes = input.filesize();
-
-        auto compression_start = steady_clock::now();
-
-        {
-            FancyOutputStream compressed(compressed_name.c_str());
-
-            if (stats.original_bytes > 0) {
-                vector<int> freqs(256, 0);
-                int next_byte = input.read_byte();
-                while (next_byte != -1) {
-                    freqs[next_byte] += 1;
-                    next_byte = input.read_byte();
-                }
-
-                HCTree tree;
-                tree.build(freqs);
-
-                Header::write_file_header(
-                    compressed,
-                    AlgorithmId::HUFFMAN,
-                    header_mode,
-                    stats.original_bytes
-                );
-                Header::write_huffman_header(compressed, header_mode, freqs);
-                stats.header_bytes = compressed.byte_count();
-
-                input.reset();
-                next_byte = input.read_byte();
-                while (next_byte != -1) {
-                    tree.encode(next_byte, compressed);
-                    next_byte = input.read_byte();
-                }
-            }
-
-            compressed.flush();
-            stats.compressed_bytes = compressed.byte_count();
-        }
-
-        auto compression_end = steady_clock::now();
-        stats.compression_ms = duration<double, milli>(compression_end - compression_start).count();
-        stats.payload_bytes = stats.compressed_bytes - stats.header_bytes;
-
-        if (stats.original_bytes == 0) {
-            ofstream restored(restored_path, ios::binary);
-            restored.close();
-            stats.verified = files_equal(input_path, restored_path);
-            return stats;
-        }
-
-        auto decompression_start = steady_clock::now();
-
-        FancyInputStream encoded(compressed_name.c_str());
-        FancyOutputStream restored(restored_name.c_str());
-        FileHeader file_header = Header::read_file_header(encoded);
-        vector<int> freqs = Header::read_huffman_header(encoded, file_header.header_mode);
-
-        HCTree rebuilt_tree;
-        rebuilt_tree.build(freqs);
-
-        for (uint64_t i = 0; i < file_header.original_size; ++i) {
-            restored.write_byte(rebuilt_tree.decode(encoded));
-        }
-
-        restored.flush();
-        auto decompression_end = steady_clock::now();
-        stats.decompression_ms = duration<double, milli>(decompression_end - decompression_start).count();
+        stats.decompression_ms = decompression_stats.decompression_ms;
         stats.verified = files_equal(input_path, restored_path);
         return stats;
     }
@@ -213,10 +147,10 @@ void Benchmark::run(const string& input_directory, const string& csv_path) {
         error("Benchmark input path must be an existing directory");
     }
 
-    vector<HeaderMode> header_modes = {
-        HeaderMode::NAIVE,
-        HeaderMode::SPARSE,
-        HeaderMode::BITMASK
+    vector<string> variants = {
+        "naive",
+        "sparse",
+        "bitmask"
     };
 
     fs::path temp_dir = "benchmarks/tmp";
@@ -226,11 +160,11 @@ void Benchmark::run(const string& input_directory, const string& csv_path) {
     for (const fs::directory_entry& entry : fs::directory_iterator(input_dir)) {
         if (!entry.is_regular_file()) continue;
 
-        for (HeaderMode mode : header_modes) {
-            string stem = entry.path().filename().string() + "_" + Header::header_mode_name(mode);
+        for (const string& variant : variants) {
+            string stem = entry.path().filename().string() + "_" + variant;
             fs::path compressed_path = temp_dir / (stem + ".cbz");
             fs::path restored_path = temp_dir / (stem + ".out");
-            results.push_back(run_huffman_trial(entry.path(), mode, compressed_path, restored_path));
+            results.push_back(run_huffman_trial(entry.path(), variant, compressed_path, restored_path));
         }
     }
 

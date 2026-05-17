@@ -1,24 +1,16 @@
 #include <iostream>
 #include <string>
-#include <vector>
-#include <chrono>
-
-#include "HCTree.hpp"
 #include "Helper.hpp"
 #include "Header.hpp"
 #include "Stats.hpp"
-#include "HuffmanCompressor.hpp"
+#include "CompressorFactory.hpp"
 #include "Benchmark.hpp"
 
 using namespace std;
-using namespace std::chrono;
-
-void printFreqs(const vector<int> &freqs);
-
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         cerr << "Usage:\n";
-        cerr << "  ./compressbench compress <input> <output> [--header naive|sparse|bitmask] [--stats]\n";
+        cerr << "  ./compressbench compress <input> <output> [--algo huffman] [--variant naive|sparse|bitmask] [--stats]\n";
         cerr << "  ./compressbench decompress <input> <output> [--stats]\n";
         cerr << "  ./compressbench benchmark <directory> [--csv <path>]\n";
         return 1;
@@ -52,26 +44,23 @@ int main(int argc, char* argv[]) {
         error("Missing input or output path");
     }
     
-    HeaderMode header_mode = HeaderMode::SPARSE;
+    string algorithm_name = "huffman";
+    string variant = "sparse";
     bool show_stats = false;
 
     // Find, set, and evaluate appropriate flags.
     for (int i = 4; i < argc; ++i) {
         string arg = argv[i];
-        if (arg == "--header") {
+        if (arg == "--algo") {
             if (i + 1 >= argc) {
-                error("Missing value after --header");
+                error("Missing value after --algo");
             }
-            string value = argv[++i];
-            if (value == "naive") {
-                header_mode = HeaderMode::NAIVE;
-            } else if (value == "sparse") {
-                header_mode = HeaderMode::SPARSE;
-            } else if (value == "bitmask") {
-                header_mode = HeaderMode::BITMASK;
-            } else {
-                error("Unknown header mode");
+            algorithm_name = argv[++i];
+        } else if (arg == "--variant") {
+            if (i + 1 >= argc) {
+                error("Missing value after --variant");
             }
+            variant = argv[++i];
         } else if (arg == "--stats") {
             show_stats = true;
         } else {
@@ -83,27 +72,24 @@ int main(int argc, char* argv[]) {
     string outputFile = argv[3];
 
     CompressionStats stats;
-    Compressor* compressor = new HuffmanCompressor();
     if (command == "compress") {
         cout << "Compressing " << inputFile << " -> " << outputFile << endl;
-        stats = compressor->compress(inputFile,outputFile,header_mode);
+        unique_ptr<Compressor> compressor = create_compressor(algorithm_name);
+        stats = compressor->compress(inputFile, outputFile, variant);
         if(show_stats) Stats::print_summary(stats);
         return 0;
     }
 
     if (command == "decompress") {
         cout << "Decompressing " << inputFile << " -> " << outputFile << endl;
-        stats = compressor->decompress(inputFile,outputFile);
+        FancyInputStream read(inputFile.c_str());
+        FileHeader file_header = Header::read_file_header(read);
+        unique_ptr<Compressor> compressor = create_compressor(file_header.algorithm);
+        stats = compressor->decompress(inputFile, outputFile);
         if(show_stats) Stats::print_summary(stats);
         return 0;
     }
 
     cerr << "Unknown command: " << command << endl;
     return 1;
-}
-
-void printFreqs(const vector<int> &freqs) {
-    for (std::size_t i = 0; i < freqs.size(); ++i) {
-        cout << "Symbol: " << char(i) << " Freq: " << freqs[i] << endl;
-    }
 }

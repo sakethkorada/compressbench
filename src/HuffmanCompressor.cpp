@@ -1,5 +1,9 @@
 #include "HuffmanCompressor.hpp"
 
+#include <chrono>
+
+using namespace std::chrono;
+
 
 
 AlgorithmId HuffmanCompressor::algorithm_id() const {
@@ -9,9 +13,18 @@ AlgorithmId HuffmanCompressor::algorithm_id() const {
 CompressionStats HuffmanCompressor::compress(
     const string& input_path,
     const string& output_path,
-    HeaderMode header_mode
+    const string& variant
 ) const {
-
+    HeaderMode header_mode;
+    if (variant == "naive") {
+        header_mode = HeaderMode::NAIVE;
+    } else if (variant == "sparse") {
+        header_mode = HeaderMode::SPARSE;
+    } else if (variant == "bitmask") {
+        header_mode = HeaderMode::BITMASK;
+    } else {
+        error("Invalid Huffman variant");
+    }
 
     CompressionStats stats;
     FancyInputStream read(input_path.c_str());
@@ -27,10 +40,13 @@ CompressionStats HuffmanCompressor::compress(
     auto start = steady_clock::now();
 
     if (stats.original_bytes == 0) {
+        Header::write_file_header(write, AlgorithmId::HUFFMAN, header_mode, stats.original_bytes);
         write.flush();
         auto end = steady_clock::now();
         stats.compression_ms = duration<double, std::milli>(end - start).count();
-        stats.compressed_bytes = 0;
+        stats.header_bytes = write.byte_count();
+        stats.compressed_bytes = write.byte_count();
+        stats.payload_bytes = 0;
         return stats;
     }
 
@@ -96,6 +112,15 @@ CompressionStats HuffmanCompressor::decompress(
     stats.header_mode = fh.header_mode;
     stats.original_bytes = fh.original_size;
     stats.compressed_bytes = read.filesize();
+
+    if (stats.original_bytes == 0) {
+        stats.header_bytes = Header::shared_header_bytes();
+        stats.payload_bytes = 0;
+        write.flush();
+        auto end = steady_clock::now();
+        stats.decompression_ms = duration<double, std::milli>(end - start).count();
+        return stats;
+    }
 
     freqs = Header::read_huffman_header(read, header);
     stats.header_bytes = Header::huffman_header_bytes(header, freqs);

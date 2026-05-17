@@ -9,7 +9,7 @@ public:
     CompressionStats compress(
         const string& input_path,
         const string& output_path,
-        HeaderMode header_mode
+        const string& variant
     ) const override;
 
     CompressionStats decompress(

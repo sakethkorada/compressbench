@@ -2,12 +2,10 @@
 #define COMPRESSOR_HPP
 
 #include <string>
-#include <chrono>
 #include "Header.hpp"
 #include "Stats.hpp"
 
 using namespace std;
-using namespace std::chrono;
 
 /**
  * Common interface for compression algorithms supported by CompressBench.
@@ -29,13 +27,14 @@ class Compressor {
         /**
          * Compress one input file into one output file.
          *
-         * header_mode is kept here because Huffman currently supports multiple
-         * metadata formats. Algorithms that do not need modes can require NONE.
+         * variant is a user-facing algorithm-local name such as "sparse" for
+         * Huffman or "chunked" for a future RLE compressor. Each concrete
+         * compressor owns validation and interpretation of its own variants.
          */
         virtual CompressionStats compress(
             const string& input_path,
             const string& output_path,
-            HeaderMode header_mode
+            const string& variant
         ) const = 0;
 
         /**
