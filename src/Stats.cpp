@@ -19,24 +19,6 @@ namespace {
         }
     }
 
-    const char* header_mode_name(HeaderMode mode) {
-        switch (mode) {
-        case HeaderMode::NONE:
-            return "none";
-        case HeaderMode::NAIVE:
-            return "naive";
-        case HeaderMode::SPARSE:
-            return "sparse";
-        case HeaderMode::BITMASK:
-            return "bitmask";
-        case HeaderMode::TREE:
-            return "tree";
-        case HeaderMode::CANONICAL:
-            return "canonical";
-        default:
-            return "unknown";
-        }
-    }
 }
 
 double CompressionStats::compression_ratio() const {
@@ -85,7 +67,7 @@ void Stats::print_summary(const CompressionStats& stats) {
     cout << "\nCompression summary\n";
     cout << "-------------------\n";
     cout << "Algorithm:              " << algorithm_name(stats.algorithm) << '\n';
-    cout << "Header mode:            " << header_mode_name(stats.header_mode) << '\n';
+    cout << "Variant:                " << stats.variant_name << '\n';
     cout << "Input kind:             " << input_kind_name(stats.input_kind) << '\n';
     cout << "Original size:          " << stats.original_bytes << " bytes\n";
     cout << "Compressed size:        " << stats.compressed_bytes << " bytes\n";

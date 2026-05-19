@@ -7,6 +7,9 @@
 
 using namespace std;
 
+namespace Config {
+            inline constexpr std::string_view DEFAULT = "default";
+}
 /**
  * Common interface for compression algorithms supported by CompressBench.
  *
@@ -47,6 +50,9 @@ class Compressor {
             const string& input_path,
             const string& output_path
         ) const = 0;
+
+
+        
 };
 
 #endif // COMPRESSOR_HPP

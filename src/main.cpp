@@ -44,8 +44,8 @@ int main(int argc, char* argv[]) {
         error("Missing input or output path");
     }
     
-    string algorithm_name = "huffman";
-    string variant = "sparse";
+    string algorithm_name = "default";
+    string variant = "default";
     bool show_stats = false;
 
     // Find, set, and evaluate appropriate flags.

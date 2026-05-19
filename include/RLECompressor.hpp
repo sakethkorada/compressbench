@@ -20,6 +20,14 @@ class RLECompressor : public Compressor {
         static constexpr uint8_t RUN_CHUNK_MASK = 0x80;
         static constexpr uint8_t LENGTH_MASK = 0x7F;
 
+        enum class RLEVariant : uint8_t {
+            NAIVE = 0,
+            CHUNKED = 1
+        };
+
+        static RLEVariant parse_variant(const string &variant);
+    
+
 
     public:
         AlgorithmId algorithm_id() const override;
@@ -27,13 +35,13 @@ class RLECompressor : public Compressor {
         CompressionStats compress(
             const string& input_path,
             const string& output_path,
-            HeaderMode header_mode
-        ) const;
+            const string& variant
+        ) const override;
 
         CompressionStats decompress(
             const string& input_path,
             const string& output_path
-        ) const;
+        ) const override;
 };
 
 #endif // RLECompressor_HPP

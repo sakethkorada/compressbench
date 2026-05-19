@@ -34,7 +34,8 @@ struct CompressionStats {
     string output_path;
     InputKind input_kind = InputKind::UNKNOWN;
     AlgorithmId algorithm = AlgorithmId::HUFFMAN;
-    HeaderMode header_mode = HeaderMode::NONE;
+    string variant_name = "unknown";
+    uint8_t variant_id = 0;
 
     // Size accounting
     uint64_t original_bytes = 0;

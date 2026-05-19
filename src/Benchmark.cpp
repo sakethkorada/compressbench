@@ -74,7 +74,7 @@ namespace {
 
         cout << left
              << setw(18) << "File"
-             << setw(10) << "Header"
+             << setw(10) << "Variant"
              << right
              << setw(12) << "Original"
              << setw(12) << "Compressed"
@@ -90,7 +90,7 @@ namespace {
             fs::path path(stats.input_path);
             cout << left
                  << setw(18) << path.filename().string()
-                 << setw(10) << Header::header_mode_name(stats.header_mode)
+                 << setw(10) << stats.variant_name
                  << right
                  << setw(12) << stats.original_bytes
                  << setw(12) << stats.compressed_bytes;
@@ -119,7 +119,7 @@ namespace {
             error("Unable to open CSV output path");
         }
 
-        csv << "file,input_kind,algorithm,header_mode,original_bytes,compressed_bytes,"
+        csv << "file,input_kind,algorithm,variant,original_bytes,compressed_bytes,"
                "header_bytes,payload_bytes,compression_ratio,space_saved_percent,"
                "compression_ms,decompression_ms,verified\n";
 
@@ -127,7 +127,7 @@ namespace {
             csv << stats.input_path << ','
                 << Stats::input_kind_name(stats.input_kind) << ','
                 << Header::algorithm_name(stats.algorithm) << ','
-                << Header::header_mode_name(stats.header_mode) << ','
+                << stats.variant_name << ','
                 << stats.original_bytes << ','
                 << stats.compressed_bytes << ','
                 << stats.header_bytes << ','
