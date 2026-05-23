@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -g -Iinclude
 
-SRC = src/main.cpp src/HCTree.cpp src/Helper.cpp src/Header.cpp src/Stats.cpp src/Benchmark.cpp src/HuffmanCompressor.cpp src/CompressorFactory.cpp
+SRC = src/main.cpp src/HCTree.cpp src/Helper.cpp src/Header.cpp src/Stats.cpp src/Benchmark.cpp src/HuffmanCompressor.cpp src/CompressorFactory.cpp src/RLECompressor.cpp
 TARGET = compressbench
 
 $(TARGET): $(SRC)

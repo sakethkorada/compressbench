@@ -7,10 +7,9 @@
 #include <iostream>
 #include <vector>
 
-#include "HCTree.hpp"
+#include "CompressorFactory.hpp"
 #include "Header.hpp"
 #include "Helper.hpp"
-#include "HuffmanCompressor.hpp"
 #include "Stats.hpp"
 
 using namespace std;
@@ -18,6 +17,11 @@ using namespace std::chrono;
 namespace fs = std::filesystem;
 
 namespace {
+    struct BenchmarkConfig {
+        string algorithm;
+        string variant;
+    };
+
     InputKind infer_input_kind(const fs::path& path) {
         string name = path.filename().string();
         string ext = path.extension().string();
@@ -46,19 +50,54 @@ namespace {
         return true;
     }
 
-    CompressionStats run_huffman_trial(
+    vector<string> default_variants_for(const string& algorithm) {
+        if (algorithm == "huffman") {
+            return {"naive", "sparse", "bitmask"};
+        }
+        if (algorithm == "rle") {
+            return {"naive"};
+        }
+
+        error("Unknown benchmark algorithm");
+        return {};
+    }
+
+    vector<BenchmarkConfig> build_configs(
+        const vector<string>& algorithm_filters,
+        const vector<string>& variant_filters
+    ) {
+        vector<BenchmarkConfig> configs;
+
+        vector<string> algorithms = algorithm_filters.empty()
+            ? vector<string>{"huffman"}
+            : algorithm_filters;
+
+        for (const string& algorithm : algorithms) {
+            vector<string> variants = variant_filters.empty()
+                ? default_variants_for(algorithm)
+                : variant_filters;
+
+            for (const string& variant : variants) {
+                configs.push_back({algorithm, variant});
+            }
+        }
+
+        return configs;
+    }
+
+    CompressionStats run_trial(
         const fs::path& input_path,
-        const string& variant,
+        const BenchmarkConfig& config,
         const fs::path& compressed_path,
         const fs::path& restored_path
     ) {
-        HuffmanCompressor compressor;
-        CompressionStats stats = compressor.compress(
+        unique_ptr<Compressor> compressor = create_compressor(config.algorithm);
+        CompressionStats stats = compressor->compress(
             input_path.string(),
             compressed_path.string(),
-            variant
+            config.variant
         );
-        CompressionStats decompression_stats = compressor.decompress(
+        CompressionStats decompression_stats = compressor->decompress(
             compressed_path.string(),
             restored_path.string()
         );
@@ -74,6 +113,7 @@ namespace {
 
         cout << left
              << setw(18) << "File"
+             << setw(10) << "Algo"
              << setw(10) << "Variant"
              << right
              << setw(12) << "Original"
@@ -84,12 +124,13 @@ namespace {
              << setw(12) << "Decomp ms"
              << setw(11) << "Verified"
              << '\n';
-        cout << string(107, '-') << '\n';
+        cout << string(117, '-') << '\n';
 
         for (const CompressionStats& stats : results) {
             fs::path path(stats.input_path);
             cout << left
                  << setw(18) << path.filename().string()
+                 << setw(10) << Header::algorithm_name(stats.algorithm)
                  << setw(10) << stats.variant_name
                  << right
                  << setw(12) << stats.original_bytes
@@ -141,17 +182,18 @@ namespace {
     }
 }
 
-void Benchmark::run(const string& input_directory, const string& csv_path) {
+void Benchmark::run(
+    const string& input_directory,
+    const string& csv_path,
+    const vector<string>& algorithm_filters,
+    const vector<string>& variant_filters
+) {
     fs::path input_dir(input_directory);
     if (!fs::exists(input_dir) || !fs::is_directory(input_dir)) {
         error("Benchmark input path must be an existing directory");
     }
 
-    vector<string> variants = {
-        "naive",
-        "sparse",
-        "bitmask"
-    };
+    vector<BenchmarkConfig> configs = build_configs(algorithm_filters, variant_filters);
 
     fs::path temp_dir = "benchmarks/tmp";
     fs::create_directories(temp_dir);
@@ -160,11 +202,11 @@ void Benchmark::run(const string& input_directory, const string& csv_path) {
     for (const fs::directory_entry& entry : fs::directory_iterator(input_dir)) {
         if (!entry.is_regular_file()) continue;
 
-        for (const string& variant : variants) {
-            string stem = entry.path().filename().string() + "_" + variant;
+        for (const BenchmarkConfig& config : configs) {
+            string stem = entry.path().filename().string() + "_" + config.algorithm + "_" + config.variant;
             fs::path compressed_path = temp_dir / (stem + ".cbz");
             fs::path restored_path = temp_dir / (stem + ".out");
-            results.push_back(run_huffman_trial(entry.path(), variant, compressed_path, restored_path));
+            results.push_back(run_trial(entry.path(), config, compressed_path, restored_path));
         }
     }
 

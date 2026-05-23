@@ -26,6 +26,17 @@ class RLECompressor : public Compressor {
         };
 
         static RLEVariant parse_variant(const string &variant);
+        static RLEVariant parse_variant_id(uint8_t variant_id);
+        static const char* variant_name(RLEVariant variant);
+
+        static void write_metadata(
+            FancyOutputStream& out,
+            RLEVariant variant
+        );
+
+        
+
+        
     
 
 

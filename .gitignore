@@ -11,3 +11,5 @@ output.txt
 .DS_Store
 .vscode/
 benchmarks/tmp/
+tests/out/
+benchmarks/results.csv

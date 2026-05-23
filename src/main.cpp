@@ -24,6 +24,8 @@ int main(int argc, char* argv[]) {
         }
 
         string csv_path;
+        vector<string> algorithm_filters;
+        vector<string> variant_filters;
         for (int i = 3; i < argc; ++i) {
             string arg = argv[i];
             if (arg == "--csv") {
@@ -31,12 +33,22 @@ int main(int argc, char* argv[]) {
                     error("Missing value after --csv");
                 }
                 csv_path = argv[++i];
+            } else if (arg == "--algo") {
+                if (i + 1 >= argc) {
+                    error("Missing value after --algo");
+                }
+                algorithm_filters.push_back(argv[++i]);
+            } else if (arg == "--variant") {
+                if (i + 1 >= argc) {
+                    error("Missing value after --variant");
+                }
+                variant_filters.push_back(argv[++i]);
             } else {
                 error("Unknown option");
             }
         }
 
-        Benchmark::run(argv[2], csv_path);
+        Benchmark::run(argv[2], csv_path, algorithm_filters, variant_filters);
         return 0;
     }
 

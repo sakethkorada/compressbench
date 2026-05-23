@@ -8,7 +8,7 @@
 using namespace std;
 
 namespace Config {
-            inline constexpr std::string_view DEFAULT = "default";
+    inline constexpr std::string_view DEFAULT = "default";
 }
 /**
  * Common interface for compression algorithms supported by CompressBench.

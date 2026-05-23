@@ -20,14 +20,4 @@ fi
 
 mkdir -p "$(dirname "$PREFIX")"
 
-./compressbench compress "$INPUT" "$COMPRESSED" --algo huffman --variant "$VARIANT"
-./compressbench decompress "$COMPRESSED" "$RESTORED"
-
-if cmp -s "$INPUT" "$RESTORED"; then
-    echo "PASS: $VARIANT round-trip matched for $INPUT"
-else
-    echo "FAIL: $VARIANT round-trip differed for $INPUT"
-    echo "  compressed: $COMPRESSED"
-    echo "  restored:   $RESTORED"
-    exit 1
-fi
+bash tests/roundtrip_variant.sh "$INPUT" huffman "$VARIANT" "$PREFIX"
